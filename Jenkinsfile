@@ -1,41 +1,38 @@
 pipeline {
+    environment {
+        registry = "sachinbenne" // Docker registry username
+        registryCredential = 'dockerhub-pwd' // Jenkins credentials ID for Docker Hub
+        dockerImage = '' // This will hold the image tag
+    }
     agent any
-    stages{
-        stage('git cloned'){
-            steps{
-                git url:'https://github.com/sachinbenne97/php-project/', branch: "master"
-              
+    stages {
+        stage('Cloning our Git') {
+            steps {
+                git 'https://github.com/SachinBenne97/php-project'
             }
         }
-        stage('Build docker image'){
+        stage('Building our image') {
             steps{
-                script{
-                    sh 'docker build -t sachinbenne97/2febimg:v1 .'
-                    sh 'docker images'
+                script {
+                    // Build Docker image with the tag using BUILD_NUMBER
+                    dockerImage = docker.build("${registry}:${BUILD_NUMBER}")
                 }
             }
         }
-          stage('Docker login') {
-            steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-pwd', passwordVariable: 'PASS', usernameVariable: 'USER')]) {
-                    sh "echo $PASS | docker login -u $USER --password-stdin"
-                    sh 'docker push sachinbenne97/2febimg:v1'
-                }
-            }
-        }
-        
-     stage('Deploy') {
-            steps {
-               script {
-                   def dockerrm = 'sudo docker rm -f My-first-containe221 || true'
-                    def dockerCmd = 'sudo docker run -itd --name My-first-containe221 -p 8082:80 sachinbenne97/2febimg:v1'
-                    sshagent(['sshkeypair']) {
-                        //chnage the private ip in below code
-                        // sh "docker run -itd --name My-first-containe211 -p 8082:80 akshu20791/2febimg:v1"
-                         sh "ssh -o StrictHostKeyChecking=no ubuntu@172.31.12.255 ${dockerrm}"
-                         sh "ssh -o StrictHostKeyChecking=no ubuntu@172.31.12.255 ${dockerCmd}"
+        stage('Deploy our image') {
+            steps{
+                script {
+                    // Push Docker image to the Docker registry
+                    docker.withRegistry('https://index.docker.io/v1/', registryCredential) {
+                        dockerImage.push()
                     }
                 }
+            }
+        }
+        stage('Cleaning up') {
+            steps{
+                // Clean up by removing the Docker image
+                sh "docker rmi ${registry}:${BUILD_NUMBER}"
             }
         }
     }
